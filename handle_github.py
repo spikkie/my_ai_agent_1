@@ -35,6 +35,28 @@ class GitHubManager:
         file_content = self.github_repo.get_contents(file_path)
         return file_content
 
+
+    def update_file(self, file_path, new_content, commit_message="Update file"):
+        """Update the content of a file in the repository."""
+        file_content = self.github_repo.get_contents(file_path)
+        self.github_repo.update_file(
+            file_content.path,
+            commit_message,
+            new_content,
+            file_content.sha
+        )
+
+
+    def modify_file_content(self, file_path):
+        """Modify the content of a file."""
+        file_content = self.get_file(file_path)
+        current_content = file_content.decoded_content.decode()
+        # Example modification: append a line
+        new_content = current_content + "\n<!-- Modified by AI Agent -->"
+        self.update_file(file_path, new_content)
+
+
+
     # def checkout_file(self, file_path):
     #     """Retrieve the content of a file."""
     #     file_content = self.github_repo.get_contents(file_path)
@@ -75,4 +97,6 @@ if __name__ == "__main__":
     pprint(f.raw_data)
     pprint(f.raw_data['content'])
     pprint(f.decoded_content)
+
+    mod_file  = manager.modify_file_content(os.getenv("GITHUB_FILE_PATH", ""))
 
