@@ -1,102 +1,123 @@
 import os
+import logging
 from pprint import pprint
 
 from dotenv import load_dotenv
-from github import Github
-from github import Auth
-from github import Repository
+from github import Github, Auth, Repository, GithubException
+
 from dataclasses import dataclass, field
+
+# Configure logging
+logging.basicConfig(filename='error.log', level=logging.ERROR)
+
 
 @dataclass
 class GitHubManager:
-
     github_auth: Auth.Token = field(init=False)
     g: Github = field(init=False)
     github_repo: Repository.Repository = field(init=False)
 
 
     def __post_init__(self):
-        # Load environment variables from .env file
-        load_dotenv()
-        # print(os.getenv("GITHUB_API_KEY"))
-        self.github_auth = Auth.Token(os.getenv("GITHUB_API_KEY", ""))
-        self.g = Github(auth=self.github_auth)
-        self.github_username = self.g.get_user().login
-        # self.github_username = os.getenv("GITHUB_USERNAME", "")
-        print(self.github_username)
+        try:
+            # Load environment variables from .env file
+            load_dotenv()
 
-        self.github_repo = self.g.get_repo(f"{self.github_username}/{os.getenv('GITHUB_REPO', '')}")
-        print(self.github_repo)
-        # self.repo = self.g.get_repo(f"{self.github_username}/{self.github_repo}")
+            self.github_auth = Auth.Token(os.getenv("GITHUB_API_KEY", ""))
+            self.g = Github(auth=self.github_auth)
+
+            self.github_username = self.g.get_user().login
+            print(self.github_username)
+
+            self.github_repo = self.g.get_repo(f"{self.github_username}/{os.getenv('GITHUB_REPO', '')}")
+            print(self.github_repo)
+            # self.repo = self.g.get_repo(f"{self.github_username}/{self.github_repo}")
+
+        except GithubException as e:
+            logging.error("Failed to initialize GitHubManager: %s", str(e))
+            raise
 
 
     def get_file(self, file_path):
-        """Retrieve the content of a file."""
-        file_content = self.github_repo.get_contents(file_path)
-        return file_content
+        try:
+            """Retrieve the content of a file."""
+            file_content = self.github_repo.get_contents(file_path)
+            return file_content
+        except GithubException as e:
+            logging.error("Failed to get file content: %s", str(e))
+            raise
 
 
     def update_file(self, file_path, new_content, commit_message="Update file"):
-        """Update the content of a file in the repository."""
-        file_content = self.github_repo.get_contents(file_path)
-        self.github_repo.update_file(
-            file_content.path,
-            commit_message,
-            new_content,
-            file_content.sha
-        )
+        try:
+            """Update the content of a file in the repository."""
+            file_content = self.github_repo.get_contents(file_path)
+            self.github_repo.update_file(
+                file_content.path,
+                commit_message,
+                new_content,
+                file_content.sha
+            )
+        except GithubException as e:
+            logging.error("Failed to update file: %s", str(e))
+            raise
 
 
     def modify_file_content(self, file_path):
-        """Modify the content of a file."""
-        file_content = self.get_file(file_path)
-        current_content = file_content.decoded_content.decode()
-        # Example modification: append a line
-        new_content = current_content + "\n<!-- Modified by AI Agent -->"
-        self.update_file(file_path, new_content)
+        try:
+            """Modify the content of a file."""
+            file_content = self.get_file(file_path)
+            current_content = file_content.decoded_content.decode()
+            # Example modification: append a line
+            new_content = current_content + "\n<!-- Modified by AI Agent -->"
+            self.update_file(file_path, new_content)
+        except Exception as e:
+            logging.error("Failed to modify file content: %s", str(e))
+            raise
+
+
+@dataclass
+class SimpleAgent:
+    github_manager: GitHubManager
+
+    def perform_task(self, file_path: str):
+        try:
+            # Retrieve file content
+            file_content = self.github_manager.get_file(file_path)
+            print("Original Content:", file_content.decoded_content.decode())
+
+            # Modify file content
+            self.github_manager.modify_file_content(file_path)
+            print("File content modified and updated in the repository.")
+
+        except Exception as e:
+            logging.error("Error in performing task: %s", str(e))
+            print("An error occurred while performing the task.")
 
 
 
-    # def checkout_file(self, file_path):
-    #     """Retrieve the content of a file."""
-    #     file_content = self.github_repo.get_contents(file_path)
-    #     return file_content.decoded_content.decode()
-    #
-    # def checkin_file(self, file_path, content, commit_message):
-    #     """Upload or update a file in the repository."""
-    #     self.repo.update_file(file_path, commit_message, content, self.repo.get_contents(file_path).sha)
-    #
-    # def create_branch(self, branch_name):
-    #     """Create a new branch in the repository."""
-    #     source_branch = self.repo.get_branch("main")  # Assuming 'main' is the default branch
-    #     self.repo.create_git_ref(ref=f"refs/heads/{branch_name}", sha=source_branch.commit.sha)
-    #
-    # def list_branches(self):
-    #     """List all branches in the repository."""
-    #     return [branch.name for branch in self.repo.get_branches()]
-    #
-    # def get_repo_info(self):
-    #     """Get repository information."""
-    #     return {
-    #         "name": self.repo.name,
-    #         "description": self.repo.description,
-    #         "url": self.repo.html_url,
-    #         "branches": self.list_branches()
-    #     }
-
-# Example usage
 if __name__ == "__main__":
+
+    # Step 3
     manager = GitHubManager()
-    pprint(manager)
+
+    agent = SimpleAgent(manager)
+    agent.perform_task(os.getenv("GITHUB_FILE_PATH", ""))
+
+
+
+    # Step 2
+    # manager = GitHubManager()
+    # pprint(manager)
     # print(manager.checkout_file("path/to/your_file.html"))
 
-    f = manager.get_file(os.getenv("GITHUB_FILE_PATH", ""))
-    pprint(type(f))
-    pprint(dir(f))
-    print('rawdata:')
-    pprint(f.raw_data)
-    pprint(f.raw_data['content'])
-    pprint(f.decoded_content)
+    # f = manager.get_file(os.getenv("GITHUB_FILE_PATH", ""))
+    # pprint(type(f))
+    # pprint(dir(f))
+    # print('rawdata:')
+    # pprint(f.raw_data)
+    # pprint(f.raw_data['content'])
+    # pprint(f.decoded_content)
 
-    mod_file  = manager.modify_file_content(os.getenv("GITHUB_FILE_PATH", ""))
+    # mod_file  = manager.modify_file_content(os.getenv("GITHUB_FILE_PATH", ""))
 
